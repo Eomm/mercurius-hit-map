@@ -7,48 +7,85 @@ const mercurius = require('mercurius')
 const mercuriusHitMap = require('..')
 
 const schema = `
-  type Query {
-    echo(msg: String!): String
-    add(x: Int!, y: Int!): Int
-    counter: Int!
+
+  scalar Date
+
+  enum Status {
+    PENDING
   }
+
+  type TypeObject {
+    plainField: String
+    scalarField: Date
+    objectField: ObjectTypeField
+    enumField: Status
+  }
+
+  type ObjectTypeField {
+    intField: Int
+  }
+
+  input TypeInput {
+    inputField: String
+    inputObjectField: InputObjectField
+  }
+
+  input InputObjectField {
+    inputIntField: Int
+  }
+
+  type Query {
+    testPlain(msg: String!): String
+    testObject: TypeObject
+  }
+
   type Mutation {
-    plusOne: Int
-    minusOne: Int
+    testInput(input: TypeInput!): String
+    neverCalled: String
   }
 `
 
-let counter = 0
-
 const resolvers = {
   Query: {
-    echo: async (_, args) => {
-      const { msg } = args
-      return msg.repeat(2)
-    },
-    add: async (_, args) => {
-      const { x, y } = args
-      return x + y
-    },
-    counter: async () => {
-      return counter
+    testPlain (parent, args, context, info) { return 'testPlain' },
+    testObject (parent, args, context, info) {
+      return {
+        plainField: 'testObject',
+        scalarField: new Date(),
+        enumField: 'PENDING',
+        objectField: {
+          intField: 99
+        }
+      }
     }
   },
   Mutation: {
-    plusOne: async (_, args) => {
-      return ++counter
-    },
-    minusOne: async (_, args) => {
-      return --counter
+    testInput (parent, args, context, info) { return 'testInput' },
+    neverCalled (parent, args, context, info) { return 'neverCalled' }
+  },
+  TypeInput (parent, args, context, info) {
+    return {
+      inputField: 'testInput',
+      inputObjectField: {
+        inputIntField: 42
+      }
     }
+  },
+  ObjectTypeField: {
+    intField (parent, args, context, info) { return parent.intField }
+  },
+  TypeObject: {
+    plainField (parent, args, context, info) { return 'plainField' },
+    scalarField (parent, args, context, info) { return new Date('2022-10-02') },
+    objectField (parent, args, context, info) { return { intField: 66 } }
+  },
+  Status (parent, args, context, info) {
+    return 'pending'
   }
 }
 
-function buildApp (t, logger, opts) {
-  const app = Fastify({
-    logger,
-    disableRequestLogging: true
-  })
+function buildApp (t, opts) {
+  const app = Fastify()
   t.teardown(app.close.bind(app))
 
   app.register(mercurius, {
@@ -60,30 +97,32 @@ function buildApp (t, logger, opts) {
   return app
 }
 
-test('should log every query', async (t) => {
-  t.plan(3)
-
+test('should count the resolvers\' executions', async (t) => {
   const app = buildApp(t)
 
-  const query = `query {
-    four: add(x: 2, y: 2)
-    six: add(x: 3, y: 3)
-    echo(msg: "hello")
-    counter
+  const query = `
+  query {
+    A: testPlain(msg: "A")
+    B: testPlain(msg: "B")
+    C: testObject { plainField enumField }
+    D: testObject { plainField scalarField objectField { intField } }
   }`
 
+  const response = await gqlReq(app, query)
+
+  const hitMap = await app.getHitMap()
+
+  console.log(JSON.stringify(response, null, 2))
+  console.log(JSON.stringify(hitMap, null, 2))
+})
+
+async function gqlReq (app, query, variables) {
   const response = await app.inject({
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     url: '/graphql',
-    body: JSON.stringify({ query })
+    body: { query, variables }
   })
-  t.same(JSON.parse(response.body), {
-    data: {
-      four: 4,
-      six: 6,
-      echo: 'hellohello',
-      counter: 0
-    }
-  })
-})
+
+  return response.json()
+}
