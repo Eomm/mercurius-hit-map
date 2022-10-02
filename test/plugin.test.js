@@ -14,6 +14,10 @@ const schema = `
     PENDING
   }
 
+  directive @fooDirective(
+    requires: Status = PENDING,
+  ) on OBJECT | FIELD_DEFINITION
+
   type TypeObject {
     plainField: String
     scalarField: Date
@@ -23,6 +27,7 @@ const schema = `
 
   type ObjectTypeField {
     intField: Int
+    zeroField: Int
   }
 
   input TypeInput {
@@ -73,13 +78,15 @@ const resolvers = {
   },
   ObjectTypeField: {
     intField (parent, args, context, info) { return parent.intField }
+    // zeroField intentionally not implemented
   },
   TypeObject: {
-    plainField (parent, args, context, info) { return 'plainField' },
+    plainField (parent, args, context, info) { return parent.plainField },
     scalarField (parent, args, context, info) { return new Date('2022-10-02') },
     objectField (parent, args, context, info) { return { intField: 66 } }
   },
   Status (parent, args, context, info) {
+    console.log({ parent })
     return 'pending'
   }
 }
@@ -104,16 +111,61 @@ test('should count the resolvers\' executions', async (t) => {
   query {
     A: testPlain(msg: "A")
     B: testPlain(msg: "B")
-    C: testObject { plainField enumField }
+    BB: testPlain(msg: "B")
+    C: testObject { plainField x:enumField y:enumField z:enumField}
     D: testObject { plainField scalarField objectField { intField } }
   }`
 
   const response = await gqlReq(app, query)
+  t.strictSame(response, {
+    data: {
+      A: 'testPlain',
+      B: 'testPlain',
+      BB: 'testPlain',
+      C: {
+        plainField: 'testObject',
+        x: 'PENDING',
+        y: 'PENDING',
+        z: 'PENDING'
+      },
+      D: {
+        plainField: 'testObject',
+        scalarField: '2022-10-02T00:00:00.000Z',
+        objectField: {
+          intField: 66
+        }
+      }
+    }
+  })
 
   const hitMap = await app.getHitMap()
-
-  console.log(JSON.stringify(response, null, 2))
-  console.log(JSON.stringify(hitMap, null, 2))
+  t.same(hitMap, {
+    Query: {
+      testPlain: 3,
+      testObject: 2
+    },
+    TypeObject: {
+      plainField: 2,
+      scalarField: 1,
+      objectField: 1,
+      enumField: 3
+    },
+    ObjectTypeField: {
+      intField: 1,
+      zeroField: 0
+    },
+    TypeInput: {
+      inputField: 0,
+      inputObjectField: 0
+    },
+    InputObjectField: {
+      inputIntField: 0
+    },
+    Mutation: {
+      testInput: 0,
+      neverCalled: 0
+    }
+  })
 })
 
 async function gqlReq (app, query, variables) {

@@ -14,7 +14,21 @@ const kVisited = Symbol('mercurius-hit-map:visited')
 function mercuriusHitMap (app, opts, next) {
   const ee = new EventEmitter()
 
+  const store = new MemoryStore(ee)
+  app.decorate('getHitMap', async function getHitMap () { return store.readHits() })
+
+  wrapGqlSchema(app.graphql.schema, hitCounter)
+
+  next()
+
   function hitCounter (originalFn, objectType, objectField) {
+    ee.emit('wrap', {
+      typeName: objectType.name,
+      fieldName: objectField.name,
+      rawType: objectType,
+      rawField: objectField
+    })
+
     return function hitResolver (...args) {
       ee.emit('hit', {
         typeName: objectType.name,
@@ -25,15 +39,6 @@ function mercuriusHitMap (app, opts, next) {
       return originalFn(...args)
     }
   }
-
-  wrapGqlSchema(app.graphql.schema, hitCounter)
-
-  const store = new MemoryStore(ee)
-  app.decorate('getHitMap', async function getHitMap () {
-    return store.readHits()
-  })
-
-  next()
 }
 
 function wrapGqlSchema (schema, hitCounter) {
@@ -47,17 +52,21 @@ function wrapGqlSchema (schema, hitCounter) {
   }
 }
 
-function wrapType (type, hitCounter) {
-  if (type[kVisited] || !type.getFields) { return }
+function wrapType (objectType, hitCounter) {
+  // if (objectType[kVisited] || !objectType.getFields) { return }
 
-  const fields = type.getFields()
-  for (const schemaTypeField of Object.values(fields)) {
-    const resolveFn = schemaTypeField.resolve
-    if (!schemaTypeField[kVisited] && resolveFn) {
-      schemaTypeField[kVisited] = true
-      schemaTypeField.resolve = hitCounter(resolveFn, type, schemaTypeField)
-    }
+  const fields = objectType.getFields()
+  for (const typeField of Object.values(fields)) {
+    const resolveFn = typeField.resolve || buildDefaultResolver(typeField)
+    // if (!typeField[kVisited]) { // ? coverage
+    typeField[kVisited] = true
+    typeField.resolve = hitCounter(resolveFn, objectType, typeField)
+    // }
   }
+}
+
+function buildDefaultResolver (objectField) {
+  return parent => parent[objectField.name]
 }
 
 function isSystemType (objectType) {
