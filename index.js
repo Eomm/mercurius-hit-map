@@ -11,12 +11,18 @@ const kVisited = Symbol('mercurius-hit-map:visited')
 function mercuriusHitMap (app, opts, next) {
   const ee = new EventEmitter()
 
-  const store = new MemoryStore(ee)
+  const store = opts.store?.(ee) || MemoryStore(ee)
+  if (opts.store && typeof store.readHits !== 'function') {
+    return next(new Error('store factory must return an object with a readHits function'))
+  }
   app.decorate('getHitMap', async function getHitMap () { return store.readHits() })
 
-  wrapGqlSchema(app.graphql.schema, hitCounter)
-
-  next()
+  try {
+    wrapGqlSchema(app.graphql.schema, hitCounter)
+    next()
+  } catch (error) {
+    next(error)
+  }
 
   function hitCounter (originalFn, objectType, objectField) {
     ee.emit('wrap', {
@@ -27,12 +33,16 @@ function mercuriusHitMap (app, opts, next) {
     })
 
     return function hitResolver (...args) {
-      ee.emit('hit', {
-        typeName: objectType.name,
-        fieldName: objectField.name,
-        rawType: objectType,
-        rawField: objectField
-      })
+      try {
+        ee.emit('hit', {
+          typeName: objectType.name,
+          fieldName: objectField.name,
+          rawType: objectType,
+          rawField: objectField
+        })
+      } catch (error) {
+        app.log.warn(error, 'Error while emitting hit event')
+      }
       return originalFn(...args)
     }
   }
