@@ -127,6 +127,10 @@ function buildApp (t, opts) {
   })
   app.register(mercuriusHitMap, opts)
 
+  app.get('/hit', () => {
+    return app.getHitMap()
+  })
+
   return app
 }
 
@@ -315,8 +319,8 @@ test('should count the resolvers\' executions mutation and subscription', async 
     t.same(data.payload, { data: { notificationAdded: { id: '2' } } })
   }
 
-  const hitMapSub = await app.getHitMap()
-  t.same(hitMapSub, {
+  const hitMapSub = await app.inject('/hit')
+  t.same(hitMapSub.json(), {
     TypeObject: {
       plainField: 0,
       scalarField: 0,
