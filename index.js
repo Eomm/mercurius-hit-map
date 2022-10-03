@@ -2,10 +2,7 @@
 
 const EventEmitter = require('events')
 const fp = require('fastify-plugin')
-const {
-  GraphQLObjectType,
-  GraphQLInputObjectType
-} = require('graphql')
+const { GraphQLObjectType } = require('graphql')
 
 const MemoryStore = require('./lib/MemoryStore')
 
@@ -44,9 +41,7 @@ function mercuriusHitMap (app, opts, next) {
 function wrapGqlSchema (schema, hitCounter) {
   const typeMap = schema.getTypeMap()
   for (const type of Object.values(typeMap)) {
-    if ((type instanceof GraphQLObjectType ||
-       type instanceof GraphQLInputObjectType) &&
-       !isSystemType(type)) {
+    if (type instanceof GraphQLObjectType && !isSystemType(type)) {
       wrapType(type, hitCounter)
     }
   }
