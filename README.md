@@ -91,9 +91,59 @@ The hit map will looks like:
 
 ## Options
 
-TBD
+The plugin accepts an options object as second parameter.
 
-- change the in-memory object to a database
+### store
+
+To store the hit map in a custom datasource you can set the `store` option.
+It must be a factory function that accepts an EventEmitter as argument
+and returns an object with the `readHits` property.
+
+The event emitter is used to notify two events:
+
+- `wrap`: it is emitted when the application is starting. If you throw an error in the listener the application will not start.
+- `hit`: it is emitted every time a resolver is called. If you throw an error in the listener, it will be log as a `WARN`. The resolver will be executed as usual.
+
+If you set an `async function` as listener, the function will be not awaited.
+In this case any you must handle the error in the listener itself.
+
+Each event gets an object as argument with the following properties:
+
+```js
+{
+  typeName: 'Query', // the Type object name
+  fieldName: 'hello' // the Type object's field name
+}
+```
+
+The following code shows the basic structure of the store object:
+
+```js
+app.register(require('mercurius-hit-map'), {
+  store: function customFactory (eventEmitter) {
+  
+    // sync function example
+    eventEmitter.on('wrap', (item) => {
+      // prepare the item to be stored
+    })
+
+    // async function example
+    eventEmitter.on('hit', async (item) => {
+      try {
+        // increment the counter
+      } catch (error) {
+        // ops, something went wrong
+      }
+    })
+
+    return {
+      readHits: async function () {
+        // return the hit map
+      },
+    }
+  }
+})
+```
 
 ## License
 
