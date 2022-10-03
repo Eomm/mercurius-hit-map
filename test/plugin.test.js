@@ -1,5 +1,6 @@
 'use strict'
 
+const { EventEmitter } = require('events')
 const { test } = require('tap')
 const Fastify = require('fastify')
 const mercurius = require('mercurius')
@@ -348,6 +349,96 @@ test('should count the resolvers\' executions mutation and subscription', async 
       notificationAdded: 1
     }
   })
+})
+
+test('wrong custom store', (t) => {
+  t.plan(2)
+  const app = buildApp(t, {
+    store (ee) {
+      t.ok(ee instanceof EventEmitter)
+      return { }
+    }
+  })
+
+  t.rejects(() => app.ready(), 'store factory must return an object with a readHits function')
+})
+
+test('custom store', async (t) => {
+  let wrapCount = 0
+  let hitCount = 0
+  const app = buildApp(t, {
+    store (ee) {
+      t.ok(ee instanceof EventEmitter)
+
+      ee.on('wrap', () => { wrapCount++ })
+      ee.on('hit', () => { hitCount++ })
+
+      return {
+        async readHits () {
+          return { custom: true }
+        }
+      }
+    }
+  })
+
+  const query = 'mutation { A: testInput(input: { inputField: "A" }) }'
+  const response = await gqlReq(app, query)
+  t.strictSame(response, { data: { A: 'testInput' } })
+
+  const hitMap = await app.getHitMap()
+  t.same(hitMap, { custom: true })
+  t.equal(wrapCount, 14)
+  t.equal(hitCount, 1)
+})
+
+test('custom store error on wrap', async (t) => {
+  const app = buildApp(t, {
+    store (ee) {
+      t.ok(ee instanceof EventEmitter)
+
+      ee.on('wrap', () => {
+        throw new Error('ops wrap error')
+      })
+
+      return {
+        async readHits () {
+          return { custom: true }
+        }
+      }
+    }
+  })
+
+  try {
+    await app.ready()
+    t.fail('should throw')
+  } catch (error) {
+    t.same(error.message, 'ops wrap error')
+  }
+})
+
+test('custom store error on hit', async (t) => {
+  const app = buildApp(t, {
+    store (ee) {
+      t.ok(ee instanceof EventEmitter)
+
+      ee.on('hit', () => {
+        throw new Error('ops hit error')
+      })
+
+      return {
+        async readHits () {
+          return { custom: true }
+        }
+      }
+    }
+  })
+
+  const query = 'query { A: testPlain(msg: "A") }'
+  const response = await gqlReq(app, query)
+  t.strictSame(response, { data: { A: 'testPlain' } }, 'should not throw')
+
+  const hitMap = await app.getHitMap()
+  t.same(hitMap, { custom: true })
 })
 
 async function gqlReq (app, query, variables) {
