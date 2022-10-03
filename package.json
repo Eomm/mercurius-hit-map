@@ -1,6 +1,6 @@
 {
   "name": "mercurius-hit-map",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Find out which GQL resolvers are used",
   "main": "index.js",
   "scripts": {
