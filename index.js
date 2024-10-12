@@ -82,7 +82,7 @@ function isSystemType (objectType) {
 module.exports = fp(mercuriusHitMap,
   {
     name: 'mercurius-hit-map',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: ['mercurius']
   }
 )
