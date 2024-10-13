@@ -1,7 +1,8 @@
 # mercurius-hit-map
 
+[![Build Status](https://github.com/Eomm/mercurius-hit-map/workflows/ci/badge.svg)](https://github.com/Eomm/mercurius-hit-map/actions)
+[![npm](https://img.shields.io/npm/v/mercurius-hit-map)](https://www.npmjs.com/package/mercurius-hit-map)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
-[![ci](https://github.com/Eomm/mercurius-hit-map/actions/workflows/ci.yml/badge.svg)](https://github.com/Eomm/mercurius-hit-map/actions/workflows/ci.yml)
 
 Find out which resolvers are used.
 
@@ -14,6 +15,13 @@ To know it you can dig into your logs and find out which resolvers are used, hop
 ```
 npm install mercurius-hit-map
 ```
+
+### Compatibility
+
+| Plugin version | Fastify version |
+| ------------- |:---------------:|
+| `^2.0.0` | `^5.0.0` |
+| `^1.0.0` | `^4.0.0` |
 
 ## Usage
 
